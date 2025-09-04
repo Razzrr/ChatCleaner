@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run app:*)",
+      "Bash(npm run build-app:*)",
+      "Bash(npm install)",
+      "Bash(npx electron-packager:*)",
+      "Bash(cmd:*)",
+      "Bash(git init:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EQBZ Chat Cleaner</title>
+    <link rel="stylesheet" href="styles-modern.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <h1>🗑️ EQBZ Chat Cleaner</h1>
+                <span class="version">v2.0</span>
+            </div>
+            <div class="user-info" id="userInfo" style="display: none;">
+                <img id="userAvatar" src="" alt="Avatar">
+                <span id="username"></span>
+                <button class="btn-nuclear" onclick="nuclearDelete()" title="Delete ALL messages EVERYWHERE">
+                    ☢️ NUCLEAR
+                </button>
+                <button class="btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </header>
+
+
+        <!-- Authentication Section -->
+        <div id="authSection" class="auth-section">
+            <h2>Choose Authentication Method</h2>
+            <div class="auth-methods">
+                <button class="auth-btn" onclick="authenticate('browser')">
+                    <span class="icon">🌐</span>
+                    <span class="title">Browser Session</span>
+                    <span class="desc">Auto-detect from Chrome/Edge/Firefox</span>
+                </button>
+                
+                <button class="auth-btn" onclick="showCredentialsForm()">
+                    <span class="icon">📧</span>
+                    <span class="title">Email & Password</span>
+                    <span class="desc">Login with Discord credentials</span>
+                </button>
+                
+                <button class="auth-btn" onclick="authenticate('qr')">
+                    <span class="icon">📱</span>
+                    <span class="title">QR Code</span>
+                    <span class="desc">Scan with Discord mobile app</span>
+                </button>
+                
+                <button class="auth-btn" onclick="showTokenForm()">
+                    <span class="icon">🔑</span>
+                    <span class="title">Manual Token</span>
+                    <span class="desc">Enter Discord token manually</span>
+                </button>
+            </div>
+
+            <!-- Credentials Form -->
+            <div id="credentialsForm" class="auth-form" style="display: none;">
+                <h3>Login with Email & Password</h3>
+                <input type="email" id="email" placeholder="Email">
+                <input type="password" id="password" placeholder="Password">
+                <button class="btn-primary" onclick="loginWithCredentials()">Login</button>
+                <button class="btn-secondary" onclick="hideAuthForms()">Cancel</button>
+            </div>
+
+            <!-- Token Form -->
+            <div id="tokenForm" class="auth-form" style="display: none;">
+                <h3>Enter Discord Token</h3>
+                <input type="text" id="token" placeholder="Discord Token">
+                <button class="btn-primary" onclick="loginWithToken()">Validate</button>
+                <button class="btn-secondary" onclick="hideAuthForms()">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Main Section -->
+        <div id="mainSection" class="main-section" style="display: none;">
+            <div class="controls">
+                <div class="mode-selector">
+                    <label>
+                        <input type="radio" name="mode" value="normal" checked>
+                        Normal Mode
+                    </label>
+                    <label>
+                        <input type="radio" name="mode" value="dryrun">
+                        Dry Run (No Deletion)
+                    </label>
+                    <label>
+                        <input type="radio" name="mode" value="test">
+                        Test Mode
+                    </label>
+                </div>
+            </div>
+
+            <div class="workspace">
+                <!-- Server/Channel Selection -->
+                <div class="selection-panel">
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('servers')">Servers</button>
+                        <button class="tab" onclick="switchTab('dms')">Direct Messages</button>
+                    </div>
+                    
+                    <div id="serversTab" class="tab-content">
+                        <div class="server-list" id="serverList">
+                            <!-- Servers will be loaded here -->
+                        </div>
+                        <div class="channel-list" id="channelList" style="display: none;">
+                            <!-- Channels will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div id="dmsTab" class="tab-content" style="display: none;">
+                        <div class="dm-list" id="dmList">
+                            <!-- DMs will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Preview & Actions -->
+                <div class="action-panel">
+                    <div id="messagePreview" class="message-preview" style="display: none;">
+                        <h3>Message Preview</h3>
+                        <div class="preview-info">
+                            <span>Total messages found: <strong id="totalMessages">0</strong></span>
+                        </div>
+                        <div class="preview-list" id="previewList">
+                            <!-- Message previews will be shown here -->
+                        </div>
+                        
+                        <div class="delete-controls">
+                            <label>
+                                Number of messages to delete:
+                                <input type="number" id="deleteCount" min="1" value="10">
+                            </label>
+                            <div class="button-group">
+                                <button class="btn-danger" onclick="startDeletion()">
+                                    🗑️ Delete Selected
+                                </button>
+                                <button class="btn-danger-all" onclick="deleteAllMessages()">
+                                    ⚠️ Delete ALL Messages
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Display -->
+                    <div id="progressSection" class="progress-section" style="display: none;">
+                        <h3>Deletion Progress</h3>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressText">0 / 0 messages deleted</span>
+                        </div>
+                        <div class="deletion-controls">
+                            <button class="btn-pause" id="pauseBtn" onclick="togglePause()">
+                                ⏸️ Pause
+                            </button>
+                            <button class="btn-stop" onclick="stopDeletion()">
+                                ⏹️ Stop
+                            </button>
+                        </div>
+                        <div class="log-container" id="logContainer">
+                            <!-- Deletion logs will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="statusBar" class="status-bar"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p id="loadingText">Connecting...</p>
+    </div>
+
+    <script src="app-debug.js"></script>
+</body>
+</html>

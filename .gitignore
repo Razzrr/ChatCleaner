@@ -1,0 +1,9 @@
+node_modules/
+.env
+.discord_token
+*.log
+dist/
+build/
+.DS_Store
+Thumbs.db
+nul
