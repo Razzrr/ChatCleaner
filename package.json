@@ -5,20 +5,11 @@
   "main": "src/electron-main.js",
   "author": "Discord Chat Cleaner",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node src/index.js",
-    "test": "jest",
-    "test:unit": "jest tests/unit",
-    "test:integration": "jest tests/integration",
-    "test:e2e": "jest tests/e2e",
-    "test:coverage": "jest --coverage",
-    "test:watch": "jest --watch",
-    "test:old": "node test.js",
-    "test:dry": "node src/index.js --dry-run",
+    "start": "electron src/electron-main.js",
+    "cli": "node src/index.js",
     "web": "node src/web-server.js",
-    "app": "electron src/electron-main.js",
-    "build-app": "electron-builder",
-    "ui": "start http://localhost:3000 && node src/web-server.js"
+    "build": "electron-builder",
+    "test": "jest"
   },
   "dependencies": {
     "chalk": "^4.1.2",

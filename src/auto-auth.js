@@ -198,8 +198,9 @@ class AutoAuth {
     }
 
     saveToken(token) {
-        fs.writeFileSync(this.tokenPath, token, 'utf8');
-        console.log(chalk.green('✓ Token saved for future use'));
+        // Token saving disabled for privacy - tokens should not be stored
+        // fs.writeFileSync(this.tokenPath, token, 'utf8');
+        console.log(chalk.yellow('⚠️ Token saving is disabled for privacy'));
     }
 }
 

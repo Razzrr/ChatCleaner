@@ -242,12 +242,15 @@ function backToServers() {
 
 function selectChannel(channel) {
     selectedChannel = channel;
-    
+
     document.querySelectorAll('.channel-item').forEach(item => {
         item.classList.remove('selected');
     });
-    event.currentTarget.classList.add('selected');
-    
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('selected');
+    }
+
+    // Send just the channel ID to match backend expectation
     socket.emit('preview-messages', channel.id);
     showLoading('Loading messages...');
 }
@@ -265,12 +268,16 @@ function displayDMs(dms) {
         const dmEl = document.createElement('div');
         dmEl.className = 'dm-item';
         dmEl.onclick = () => selectDM(dm);
-        
+
+        // Handle both old and new username formats
+        const username = dm.username || 'Unknown User';
+        const discriminator = dm.discriminator || '0000';
+
         dmEl.innerHTML = `
-            ${dm.avatar ? `<img src="${dm.avatar}" alt="${dm.username}">` : '<span>👤</span>'}
-            <span>${dm.username}#${dm.discriminator}</span>
+            ${dm.avatar ? `<img src="${dm.avatar}" alt="${username}">` : '<span>👤</span>'}
+            <span>${username}${discriminator !== '0' ? '#' + discriminator : ''}</span>
         `;
-        
+
         dmList.appendChild(dmEl);
     });
 }

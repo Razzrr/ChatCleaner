@@ -141,11 +141,12 @@ class DiscordAuth {
 
     async loginWithCredentials(email, password) {
         console.log(chalk.blue('Attempting login with credentials...'));
-        
+        console.log(chalk.yellow('Note: Due to Discord security, manual token entry may be more reliable.'));
+
         try {
-            const browser = await puppeteer.launch({ 
+            const browser = await puppeteer.launch({
                 headless: false,
-                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security', '--disable-features=IsolateOrigins,site-per-process'],
                 defaultViewport: null
             });
             
@@ -167,30 +168,72 @@ class DiscordAuth {
                 { timeout: 60000 }
             );
             
+            // Wait for token to be available
+            await page.waitForFunction(
+                () => {
+                    return window.localStorage.getItem('token') ||
+                           (typeof webpackChunkdiscord_app !== 'undefined');
+                },
+                { timeout: 10000 }
+            );
+
             const token = await page.evaluate(() => {
                 // Try multiple methods to extract token
                 const getToken = () => {
-                    // Method 1: Direct localStorage
-                    const localToken = localStorage.getItem('token');
-                    if (localToken) return localToken.replace(/"/g, '');
-                    
-                    // Method 2: iframe method
+                    // Method 1: Check for token in localStorage (works for some versions)
+                    const localToken = window.localStorage.getItem('token');
+                    if (localToken) {
+                        return localToken.replace(/['"]/g, '');
+                    }
+
+                    // Method 2: Try to access via Discord's webpack modules
                     try {
-                        const iframe = document.createElement('iframe');
-                        document.body.appendChild(iframe);
-                        const token = iframe.contentWindow.localStorage.token;
-                        iframe.remove();
-                        if (token) return token.replace(/"/g, '');
-                    } catch (e) {}
-                    
-                    // Method 3: webpack method
+                        const mods = webpackChunkdiscord_app.push([[Symbol()], {}, q => Object.values(q.c)]);
+                        webpackChunkdiscord_app.pop();
+                        const findModule = (filter) => {
+                            for (const m of mods) {
+                                if (!m.exports) continue;
+                                if (filter(m.exports)) return m.exports;
+                                for (const ex in m.exports) {
+                                    if (filter(m.exports[ex])) return m.exports[ex];
+                                }
+                            }
+                        };
+                        const tokenModule = findModule(m => m?.default?.getToken || m?.getToken);
+                        if (tokenModule) {
+                            const token = tokenModule.default?.getToken?.() || tokenModule.getToken?.();
+                            if (token) return token;
+                        }
+                    } catch (e) {
+                        console.error('Webpack method failed:', e);
+                    }
+
+                    // Method 3: Try XMLHttpRequest override
                     try {
-                        return (webpackChunkdiscord_app.push([[''],{},q=>Object.values(q.c).find(e=>e.exports?.default?.getToken).exports.default.getToken()]));
-                    } catch (e) {}
-                    
+                        let token = null;
+                        const originalOpen = XMLHttpRequest.prototype.open;
+                        XMLHttpRequest.prototype.open = function() {
+                            const authorization = this.getRequestHeader?.('Authorization');
+                            if (authorization) {
+                                token = authorization;
+                            }
+                            return originalOpen.apply(this, arguments);
+                        };
+
+                        // Trigger a request to get the token
+                        const req = new XMLHttpRequest();
+                        req.open('GET', '/api/v9/users/@me');
+                        const authHeader = req.getRequestHeader?.('Authorization');
+                        if (authHeader) return authHeader;
+
+                        XMLHttpRequest.prototype.open = originalOpen;
+                    } catch (e) {
+                        console.error('XMLHttpRequest method failed:', e);
+                    }
+
                     return null;
                 };
-                
+
                 return getToken();
             });
             
@@ -287,27 +330,38 @@ class DiscordAuth {
 
     async validateToken(token) {
         try {
+            // Clean token
+            const cleanToken = token.replace(/['"]/g, '').trim();
+
             const response = await fetch('https://discord.com/api/v9/users/@me', {
                 headers: {
-                    'Authorization': token
+                    'Authorization': cleanToken,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 }
             });
-            
+
             if (response.status === 200) {
                 const user = await response.json();
+                console.log(chalk.green(`✓ Token validated for user: ${user.username}`));
                 return user;
+            } else if (response.status === 401) {
+                console.log(chalk.red('Token is invalid or expired'));
+            } else {
+                console.log(chalk.red(`Validation failed with status: ${response.status}`));
             }
         } catch (error) {
+            console.log(chalk.red('Token validation error:', error.message));
             return null;
         }
-        
+
         return null;
     }
 
     saveToken(token) {
-        const configPath = path.join(process.cwd(), '.discord_token');
-        fs.writeFileSync(configPath, token, 'utf8');
-        console.log(chalk.green('✓ Token saved for future use'));
+        // Token saving disabled for privacy - tokens should not be stored
+        // const configPath = path.join(process.cwd(), '.discord_token');
+        // fs.writeFileSync(configPath, token, 'utf8');
+        console.log(chalk.yellow('⚠️ Token saving is disabled for privacy'));
     }
 
     loadSavedToken() {

@@ -68,6 +68,20 @@
             <!-- Token Form -->
             <div id="tokenForm" class="auth-form" style="display: none;">
                 <h3>Enter Discord Token</h3>
+                <div class="help-text" style="margin-bottom: 15px; padding: 10px; background: #2a2a2a; border-radius: 5px;">
+                    <p style="margin: 5px 0;"><strong>How to get your token:</strong></p>
+                    <ol style="margin: 5px 0; padding-left: 20px;">
+                        <li>Open Discord in your browser</li>
+                        <li>Press F12 to open Developer Tools</li>
+                        <li>Go to the Network tab</li>
+                        <li>Type /api in the filter box</li>
+                        <li>Refresh the page (F5)</li>
+                        <li>Click on any request to /api</li>
+                        <li>Look for "Authorization" in Request Headers</li>
+                        <li>Copy the token value (without quotes)</li>
+                    </ol>
+                    <p style="margin: 5px 0; color: #ff9800;">⚠️ Never share your token with anyone!</p>
+                </div>
                 <input type="text" id="token" placeholder="Discord Token">
                 <button class="btn-primary" onclick="loginWithToken()">Validate</button>
                 <button class="btn-secondary" onclick="hideAuthForms()">Cancel</button>
@@ -179,6 +193,6 @@
         <p id="loadingText">Connecting...</p>
     </div>
 
-    <script src="app-debug.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

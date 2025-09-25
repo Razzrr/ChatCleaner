@@ -6,7 +6,10 @@
       "Bash(npm install)",
       "Bash(npx electron-packager:*)",
       "Bash(cmd:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(npm start)",
+      "Bash(taskkill:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

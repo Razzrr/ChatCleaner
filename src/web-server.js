@@ -92,19 +92,34 @@ class DiscordManager {
             // Save token for future use
             this.auth.saveToken(token);
             
-            // Login to Discord
-            this.client = new Client();
+            // Login to Discord with proper intents for selfbot
+            this.client = new Client({
+                checkUpdate: false,
+                // Enable DM channel caching
+                partials: ['CHANNEL', 'MESSAGE', 'USER']
+            });
             discordClient = this.client;
             
             return new Promise((resolve, reject) => {
-                this.client.on('ready', () => {
+                this.client.on('ready', async () => {
                     currentUser = {
                         id: this.client.user.id,
                         username: this.client.user.username,
                         discriminator: this.client.user.discriminator,
                         avatar: this.client.user.avatarURL()
                     };
-                    
+
+                    // Try to fetch DM channels after ready
+                    console.log('Client ready, fetching private channels...');
+                    try {
+                        // For selfbot v13, we need to use the proper method
+                        if (this.client.channels.cache) {
+                            console.log(`Initial channel cache size: ${this.client.channels.cache.size}`);
+                        }
+                    } catch (error) {
+                        console.error('Error checking channels:', error);
+                    }
+
                     this.socket.emit('authenticated', currentUser);
                     resolve(currentUser);
                 });
@@ -113,7 +128,13 @@ class DiscordManager {
                     reject(error);
                 });
                 
-                this.client.login(token).catch(reject);
+                // Clean the token - remove any quotes or extra characters
+                const cleanToken = token.replace(/['"]/g, '').trim();
+                console.log(`Attempting to login with token (length: ${cleanToken.length})`);
+                this.client.login(cleanToken).catch((error) => {
+                    console.error('Discord login failed:', error.message);
+                    reject(error);
+                });
             });
             
         } catch (error) {
@@ -160,48 +181,103 @@ class DiscordManager {
 
     async getDMs() {
         if (!this.client) throw new Error('Not authenticated');
-        
+
+        console.log('Fetching DM channels...');
+
+        // Fetch DM channels - the selfbot library might handle this differently
         const dms = [];
-        this.client.channels.cache
-            .filter(channel => channel.type === 'DM')
-            .forEach(dm => {
-                dms.push({
-                    id: dm.id,
-                    username: dm.recipient.username,
-                    discriminator: dm.recipient.discriminator,
-                    avatar: dm.recipient.avatarURL()
-                });
-            });
-        
+
+        // Try to get DM channels from cache first
+        const dmChannels = this.client.channels.cache.filter(channel =>
+            channel.type === 'DM' || channel.type === 1
+        );
+
+        console.log(`Found ${dmChannels.size} DM channels in cache`);
+
+        // If no DMs in cache, try to fetch them
+        if (dmChannels.size === 0) {
+            console.log('No DMs in cache, attempting to fetch...');
+            // For selfbot, we might need to access private channels differently
+            try {
+                // Try accessing user's DM channels through relationships
+                if (this.client.relationships) {
+                    console.log('Checking relationships...');
+                    const friends = this.client.relationships.cache.filter(r => r.type === 1);
+                    console.log(`Found ${friends.size} friends in relationships`);
+                }
+
+                // Try fetching channels
+                await this.client.channels.fetch();
+            } catch (error) {
+                console.error('Error fetching channels:', error);
+            }
+        }
+
+        // Process found DM channels
+        dmChannels.forEach(dm => {
+            try {
+                if (dm.recipient) {
+                    dms.push({
+                        id: dm.id,
+                        username: dm.recipient.username || 'Unknown User',
+                        discriminator: dm.recipient.discriminator || '0000',
+                        avatar: dm.recipient.avatarURL ? dm.recipient.avatarURL() : null
+                    });
+                    console.log(`Added DM: ${dm.recipient.username}`);
+                }
+            } catch (error) {
+                console.error(`Error processing DM channel ${dm.id}:`, error);
+            }
+        });
+
+        console.log(`Returning ${dms.length} DMs`);
         return dms;
     }
 
     async previewMessages(channelId, limit = 10) {
         if (!this.client) throw new Error('Not authenticated');
-        
+
+        console.log(`Fetching messages for channel: ${channelId}`);
+
         const channel = this.client.channels.cache.get(channelId);
-        if (!channel) throw new Error('Channel not found');
-        
-        const messages = await channel.messages.fetch({ limit: 100 });
-        const myMessages = messages.filter(m => m.author.id === this.client.user.id);
-        
-        const preview = [];
-        let count = 0;
-        for (const message of myMessages.values()) {
-            if (count >= limit) break;
-            preview.push({
-                id: message.id,
-                content: message.content,
-                timestamp: message.createdTimestamp,
-                attachments: message.attachments.size
-            });
-            count++;
+        if (!channel) {
+            console.error(`Channel not found: ${channelId}`);
+            throw new Error('Channel not found');
         }
-        
-        return {
-            total: myMessages.size,
-            preview: preview
-        };
+
+        console.log(`Found channel: ${channel.type === 'DM' ? 'DM with ' + channel.recipient?.username : channel.name}`);
+
+        try {
+            const messages = await channel.messages.fetch({ limit: 100 });
+            console.log(`Fetched ${messages.size} total messages`);
+
+            const myMessages = messages.filter(m => m.author.id === this.client.user.id);
+            console.log(`Found ${myMessages.size} messages from current user`);
+
+            const preview = [];
+            let count = 0;
+            for (const message of myMessages.values()) {
+                if (count >= limit) break;
+                preview.push({
+                    id: message.id,
+                    content: message.content || '[No content]',
+                    timestamp: message.createdTimestamp,
+                    attachments: message.attachments.size
+                });
+                count++;
+            }
+
+            console.log(`Returning preview with ${preview.length} messages out of ${myMessages.size} total`);
+
+            return {
+                total: myMessages.size,
+                preview: preview,
+                channelName: channel.type === 'DM' ? channel.recipient?.username : channel.name
+            };
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+            throw error;
+        }
     }
 
     async deleteMessages(channelId, count, dryRun = false, deleteAll = false) {
